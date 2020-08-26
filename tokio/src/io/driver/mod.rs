@@ -7,6 +7,7 @@ use crate::loom::sync::atomic::AtomicUsize;
 use crate::park::{Park, Unpark};
 use crate::runtime::context;
 use crate::util::slab::{Address, Slab};
+use crate::util::trace::trace;
 
 use mio::event::Evented;
 use std::fmt;
@@ -102,6 +103,11 @@ impl Driver {
     }
 
     fn turn(&mut self, max_wait: Option<Duration>) -> io::Result<()> {
+        #[cfg(feature = "tracing")]
+        let span = tracing::trace_span!("turn", ?max_wait);
+        #[cfg(feature = "tracing")]
+        let _e = span.enter();
+
         // Block waiting for an event to happen, peeling out how many events
         // happened.
         match self.inner.io.poll(&mut self.events, max_wait) {
@@ -128,6 +134,7 @@ impl Driver {
     }
 
     fn dispatch(&self, token: mio::Token, ready: mio::Ready) {
+        trace!(token = token.0, ?ready, "dispatching...");
         let mut rd = None;
         let mut wr = None;
 
@@ -155,10 +162,12 @@ impl Driver {
         }
 
         if let Some(w) = rd {
+            trace!("waking read waiter");
             w.wake();
         }
 
         if let Some(w) = wr {
+            trace!("waking wrute waiter");
             w.wake();
         }
     }
@@ -254,7 +263,9 @@ impl Inner {
             )
         })?;
 
-        self.n_sources.fetch_add(1, SeqCst);
+        let _n_sources = self.n_sources.fetch_add(1, SeqCst);
+        let token = address.to_usize();
+        trace!(token, ?ready, sources.count = _n_sources, "add_source");
 
         self.io.register(
             source,

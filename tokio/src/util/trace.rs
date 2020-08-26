@@ -6,6 +6,7 @@ cfg_trace! {
         use pin_project_lite::pin_project;
 
         use tracing::Span;
+        pub(crate) use tracing::trace;
 
         pin_project! {
             /// A future that has been instrumented with a `tracing` span.
@@ -47,6 +48,13 @@ cfg_trace! {
 }
 
 cfg_not_trace! {
+    #[macro_export]
+    macro_rules! trace {
+        ($($x:tt)*) => {
+
+        }
+    }
+
     cfg_rt_core! {
         #[inline]
         pub(crate) fn task<F>(task: F, _: &'static str) -> F {

@@ -119,23 +119,39 @@ impl TcpStream {
     /// [`write_all`]: fn@crate::io::AsyncWriteExt::write_all
     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
     pub async fn connect<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let addrs = addr.to_socket_addrs().await?;
+        use crate::util::trace;
+        let f = async move {
+            let addrs = addr.to_socket_addrs().await?;
 
-        let mut last_err = None;
+            let mut last_err = None;
 
-        for addr in addrs {
-            match TcpStream::connect_addr(addr).await {
-                Ok(stream) => return Ok(stream),
-                Err(e) => last_err = Some(e),
+            for addr in addrs {
+                trace::trace!(?addr, "trying");
+                match TcpStream::connect_addr(addr).await {
+                    Ok(stream) => {
+                        trace::trace!(?addr, "done");
+                        return Ok(stream);
+                    }
+                    Err(e) => {
+                        trace::trace!(?addr, error = ?e);
+                        last_err = Some(e);
+                    }
+                }
             }
-        }
 
-        Err(last_err.unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "could not resolve to any address",
-            )
-        }))
+            Err(last_err.unwrap_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "could not resolve to any address",
+                )
+            }))
+        };
+        #[cfg(feature = "tracing")]
+        let f = trace::Instrumented::new(
+            f,
+            tracing::debug_span!(target: "tokio::net", "TcpStream::connect"),
+        );
+        f.await
     }
 
     /// Establishes a connection to the specified `addr`.
