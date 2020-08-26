@@ -3,6 +3,7 @@ use crate::io::{AsyncRead, AsyncWrite, PollEvented};
 use crate::net::tcp::split::{split, ReadHalf, WriteHalf};
 use crate::net::tcp::split_owned::{split_owned, OwnedReadHalf, OwnedWriteHalf};
 use crate::net::ToSocketAddrs;
+use crate::util::trace;
 
 use bytes::Buf;
 use iovec::IoVec;
@@ -119,7 +120,6 @@ impl TcpStream {
     /// [`write_all`]: fn@crate::io::AsyncWriteExt::write_all
     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
     pub async fn connect<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        use crate::util::trace;
         let f = async move {
             let addrs = addr.to_socket_addrs().await?;
 
@@ -158,7 +158,7 @@ impl TcpStream {
     async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
         let sys = mio::net::TcpStream::connect(&addr)?;
         let stream = TcpStream::new(sys)?;
-
+        trace::trace!("stream constructed");
         // Once we've connected, wait for the stream to be writable as
         // that's when the actual connection has been initiated. Once we're
         // writable we check for `take_socket_error` to see if the connect
@@ -166,6 +166,7 @@ impl TcpStream {
         //
         // If all that succeeded then we ship everything on up.
         poll_fn(|cx| stream.io.poll_write_ready(cx)).await?;
+        trace::trace!("writable!");
 
         if let Some(e) = stream.io.get_ref().take_error()? {
             return Err(e);

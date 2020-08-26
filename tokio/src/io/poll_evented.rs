@@ -271,6 +271,7 @@ where
         cx: &mut Context<'_>,
         mask: mio::Ready,
     ) -> Poll<io::Result<mio::Ready>> {
+        crate::util::trace::trace!(resource = %std::any::type_name::<E>(), "poll_read_ready");
         assert!(!mask.is_writable(), "cannot poll for write readiness");
         poll_ready!(
             self,
@@ -338,6 +339,7 @@ where
     /// This method may not be called concurrently. It takes `&self` to allow
     /// calling it concurrently with `poll_read_ready`.
     pub fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<io::Result<mio::Ready>> {
+        crate::util::trace::trace!(resource = %std::any::type_name::<E>(), "poll_write_ready");
         poll_ready!(
             self,
             mio::Ready::writable(),
