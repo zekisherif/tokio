@@ -119,8 +119,9 @@ impl Driver {
 
         for event in self.events.iter() {
             let token = event.token();
-
+            trace!(?token);
             if token == TOKEN_WAKEUP {
+                trace!("-> wakeup");
                 self.inner
                     .wakeup
                     .set_readiness(mio::Ready::empty())
@@ -139,6 +140,7 @@ impl Driver {
         let mut wr = None;
 
         let address = Address::from_usize(token.0);
+        trace!(token = token.0, ?address);
 
         let io = match self.inner.io_dispatch.get(address) {
             Some(io) => io,
@@ -167,7 +169,7 @@ impl Driver {
         }
 
         if let Some(w) = wr {
-            trace!("waking wrute waiter");
+            trace!("waking write waiter");
             w.wake();
         }
     }
